@@ -1,5 +1,6 @@
 ![Homepage](https://github.com/omshree59/NEWtravelfinder/blob/fe62222c96d2882343ab184ea376aab7243040cf/Screenshot%202025-09-07%20002739.png)
  🌍 ExploraAI – AI-Powered Travel Inspiration
+  TRY it here :- https://exploraaa.vercel.app/
 
 ExploraAI is a modern full-stack web app that helps travelers discover exciting destinations based on their preferences, budget, and weather conditions. Powered by  AI-driven insights, it makes trip planning fun, smart, and effortless.
 

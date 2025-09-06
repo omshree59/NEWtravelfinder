@@ -1,6 +1,6 @@
 const express = require('express');
 const axios = require('axios');
-const cors =require('cors');
+const cors = require('cors');
 const path = require('path');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
@@ -9,19 +9,79 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// This is the crucial fix for Vercel.
-// It tells the server to serve all static files from the 'public' folder.
-app.use(express.static(path.join(__dirname, 'public')));
-
-// CORS is still good practice.
-app.use(cors());
-
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+app.use(cors());
 const cache = new Map();
 
+// This tells Express to serve your index.html from the 'public' directory.
+app.use(express.static(path.join(__dirname, 'public')));
+
+// --- AI-Powered Functions ---
+async function getAIRecommendations(budget, currency) {
+    let convertedBudgetUSD = budget;
+    let budgetContext = `The user's budget is ${budget} ${currency}.`;
+    if (currency !== 'USD') {
+        try {
+            const exchangeResponse = await axios.get(`https://api.frankfurter.app/latest?from=${currency}&to=USD`);
+            const rate = exchangeResponse.data.rates.USD;
+            convertedBudgetUSD = budget * rate;
+            budgetContext = `The user's budget is ${budget} ${currency}, which is approximately ${Math.round(convertedBudgetUSD)} USD.`;
+        } catch (error) {
+            console.error(`Failed to fetch exchange rate for ${currency}.`, error.message);
+        }
+    }
+    
+    // --- REFINED & MORE UNIVERSAL PROMPT ---
+    // This prompt forces the AI to analyze the budget's value for ANY currency and act accordingly.
+    const prompt = `You are a world-class travel expert AI. Your primary task is to provide realistic and practical travel suggestions based on a user's budget for a one-week trip.
+
+**User's Budget Context:** ${budgetContext}
+
+Based *only* on the provided budget context, you MUST categorize the budget as 'Low', 'Medium', or 'High' and then suggest 5 travel destinations according to the following strict rules:
+
+1.  **If the budget is 'Low'** (realistically insufficient for international travel from the home country): You MUST suggest 5 destinations (states or major cities) *within the currency's home country*.
+2.  **If the budget is 'Medium'** (realistically sufficient for some, but not all, international travel): You MUST suggest 5 budget-friendly foreign countries or major cities, prioritizing destinations that are geographically nearby or known for being affordable.
+3.  **If the budget is 'High'** (realistically sufficient for significant international travel): You MUST suggest 5 diverse foreign countries, which can include more distant or premium destinations.
+
+**Crucial Rules:**
+- For 'Medium' and 'High' budgets, all 5 suggestions must be from different countries.
+- Your entire response MUST be a single, valid JSON array of objects.
+- Each object must have a "name" and a "type" ('city', 'state', or 'country').
+- For 'city' or 'state' types, you MUST include the "country" name.
+
+Do not include any explanations, markdown, or text outside of the JSON array.`;
+
+    try {
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+        if (typeof text !== 'string') throw new Error("Received a non-text response from AI.");
+        const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        return JSON.parse(cleanedText);
+    } catch (error) {
+        console.error("Error calling Gemini API for locations:", error);
+        return [];
+    }
+}
+
+async function getSightsFromAI(locationName) {
+    const prompt = `Suggest the 3 most famous tourist attractions in ${locationName}. Provide your answer ONLY as a valid JSON array of strings. Example: ["Eiffel Tower", "Louvre Museum"]. Do not add any other text.`;
+    try {
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+        if (typeof text !== 'string') throw new Error("Received a non-text response from AI for sights.");
+        const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        return JSON.parse(cleanedText);
+    } catch (error) {
+        console.error(`Error calling Gemini API for sights in ${locationName}:`, error);
+        return ["Famous landmarks", "Local markets"];
+    }
+}
+
 // --- API Route ---
-// All your API logic remains the same.
 app.get('/api/destinations', async (req, res) => {
     const budget = parseInt(req.query.budget, 10);
     const currency = req.query.currency || 'USD';
@@ -29,8 +89,8 @@ app.get('/api/destinations', async (req, res) => {
     if (isNaN(budget)) {
         return res.status(400).json({ error: 'A valid budget is required.' });
     }
-    
-    const cacheKey = `destinations-v8-${budget}-${currency}`;
+
+    const cacheKey = `destinations-vFinal-universal-${budget}-${currency}`;
     if (cache.has(cacheKey) && (Date.now() - cache.get(cacheKey).timestamp < 3600000)) {
         console.log(`Serving from cache for ${budget} ${currency}`);
         return res.json(cache.get(cacheKey).data);
@@ -45,7 +105,7 @@ app.get('/api/destinations', async (req, res) => {
         const destinations = [];
         for (const location of suggestedLocations) {
             try {
-                const isCity = location.type === 'city';
+                const isCity = location.type === 'city' || location.type === 'state';
                 const countryName = isCity ? location.country : location.name;
                 const locationName = location.name;
 
@@ -79,11 +139,19 @@ app.get('/api/destinations', async (req, res) => {
                 });
                 const attractionsPromise = getSightsFromAI(locationName);
                 const [weatherResponse, attractions] = await Promise.all([weatherPromise, attractionsPromise]);
+
                 const currencyData = country.currencies ? Object.values(country.currencies)[0] : null;
 
                 destinations.push({
-                    name: locationName, capital: subtext, flag: country.flags.svg, currency: currencyData ? currencyData.name : 'N/A', latlng: latlng,
-                    weather: { temp: weatherResponse.data.main.temp, description: weatherResponse.data.weather[0].description },
+                    name: locationName,
+                    capital: subtext,
+                    flag: country.flags.svg,
+                    currency: currencyData ? currencyData.name : 'N/A',
+                    latlng: latlng,
+                    weather: {
+                        temp: weatherResponse.data.main.temp,
+                        description: weatherResponse.data.weather[0].description
+                    },
                     attractions: attractions,
                 });
             } catch (error) {
@@ -98,44 +166,10 @@ app.get('/api/destinations', async (req, res) => {
     }
 });
 
-// --- Catch-all Route for Frontend ---
-// This is the second crucial fix. It ensures that any request that is not for the API
-// is served the main index.html file. This is essential for single-page applications.
+// This final route serves the frontend for any path that isn't an API call.
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
-
-// --- AI Helper Functions (No changes needed here) ---
-async function getAIRecommendations(budget, currency) {
-    let convertedBudgetUSD = budget;
-    let budgetContext = `The user's budget is ${budget} ${currency}.`;
-    if (currency !== 'USD') {
-        try {
-            const exchangeResponse = await axios.get(`https://api.frankfurter.app/latest?from=${currency}&to=USD`);
-            convertedBudgetUSD = budget * exchangeResponse.data.rates.USD;
-            budgetContext = `The user's budget is ${budget} ${currency}, which is approximately ${Math.round(convertedBudgetUSD)} USD.`;
-        } catch (error) { console.error(`Failed to fetch exchange rate for ${currency}.`, error.message); }
-    }
-    const prompt = `You are a highly realistic travel expert. A user has a budget for a one-week trip. ${budgetContext}. Based on these strict rules, suggest 5 travel destinations: 1. If the budget is extremely low (under 200 USD), you MUST suggest 5 famous travel CITIES within that currency's home country. 2. If the budget is moderate (between 200 USD and 700 USD), suggest 5 budget-friendly CITIES, each from a different nearby or affordable country. 3. If the budget is high (over 700 USD), suggest 5 diverse COUNTRIES. IMPORTANT: For rules 2 and 3, ensure all 5 suggestions are from different countries. Provide your answer ONLY as a valid JSON array of objects. Each object must have "name" and "type" ('city' or 'country'). For cities, you MUST also include "country". Do not add any other text.`;
-    try {
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
-        if (typeof text !== 'string') throw new Error("Received non-text response from AI.");
-        const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-        return JSON.parse(cleanedText);
-    } catch (error) { console.error("Error calling Gemini API for locations:", error); return []; }
-}
-
-async function getSightsFromAI(locationName) {
-    const prompt = `Suggest the 3 most famous tourist attractions in ${locationName}. Provide your answer ONLY as a valid JSON array of strings. Example: ["Eiffel Tower", "Louvre Museum"]. Do not add any other text.`;
-    try {
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
-        if (typeof text !== 'string') throw new Error("Received non-text response from AI for sights.");
-        const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-        return JSON.parse(cleanedText);
-    } catch (error) { console.error(`Error calling Gemini API for sights in ${locationName}:`, error); return ["Famous landmarks", "Local markets"]; }
-}
 
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);

@@ -1,4 +1,4 @@
- https://github.com/omshree59/NEWtravelfinder/blob/fe62222c96d2882343ab184ea376aab7243040cf/Screenshot%202025-09-07%20002739.png
+![Homepage](https://github.com/omshree59/NEWtravelfinder/blob/fe62222c96d2882343ab184ea376aab7243040cf/Screenshot%202025-09-07%20002739.png)
  🌍 ExploraAI – AI-Powered Travel Inspiration
 
 ExploraAI is a modern full-stack web app that helps travelers discover exciting destinations based on their preferences, budget, and weather conditions. Powered by  AI-driven insights, it makes trip planning fun, smart, and effortless.
@@ -16,7 +16,7 @@ ExploraAI is a modern full-stack web app that helps travelers discover exciting 
 ⚡ Fast & Reliable – built with React + Express for smooth experience
 
 
-https://github.com/omshree59/NEWtravelfinder/blob/fe62222c96d2882343ab184ea376aab7243040cf/Screenshot%202025-09-07%20002809.png
+![Homepage](https://github.com/omshree59/NEWtravelfinder/blob/fe62222c96d2882343ab184ea376aab7243040cf/Screenshot%202025-09-07%20002809.png)
 
 🛠 Tech Stack
 
@@ -31,4 +31,4 @@ OpenWeather API 🌤
 RestCountries API 🌍
 
 
-https://github.com/omshree59/NEWtravelfinder/blob/fe62222c96d2882343ab184ea376aab7243040cf/Screenshot%202025-09-07%20002821.png
+![Homepage](https://github.com/omshree59/NEWtravelfinder/blob/fe62222c96d2882343ab184ea376aab7243040cf/Screenshot%202025-09-07%20002821.png)

@@ -65,7 +65,7 @@
              <h2 class="inline-block ml-[4.2rem] bg-clip-text text-transparent bg-gradient-to-r from-blue-500 via-rose-500 to-pink-900">𝐹𝒾𝓃𝒹𝑒𝓇 </h2>
             <p class="text-slate-500 text-sm mt-1">Plan Less ⏳ Travel More 🌍</p>
         </header>
-
+         <div id="builder-content-target" class="mb-6"></div>
         <!-- Search Form -->
         <div class="flex items-center space-x-2">
             <div class="relative flex-grow">
@@ -98,6 +98,45 @@
     </main>
     
     <script>
+                // ADD THIS ENTIRE BLOCK HERE
+        // Wait for the HTML document to be fully loaded before running the script
+        document.addEventListener('DOMContentLoaded', function() {
+            // --- Start of Builder.io Integration Code ---
+
+            // 1. Replace with your actual Public API Key from Builder.io
+            const builderApiKey = '9f4450c1936a4ac3b5fbf5c777afd099';
+
+            // 2. Replace with the API name of your Builder.io model (e.g., 'page-section')
+            const builderModelName = 'page-section';
+
+            // Construct the API URL to fetch content
+            const apiUrl = `https://cdn.builder.io/api/v2/content/${builderModelName}?apiKey=${builderApiKey}&limit=1`;
+
+            // Fetch the content from Builder.io
+            fetch(apiUrl)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data && data.results && data.results.length > 0) {
+                        const builderHtmlContent = data.results[0].data.html;
+                        const targetElement = document.getElementById('builder-content-target');
+                        if (targetElement) {
+                            targetElement.innerHTML = builderHtmlContent;
+                        } else {
+                            console.error('Builder.io target element with ID "builder-content-target" not found.');
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching content from Builder.io:', error);
+                });
+            // --- End of Builder.io Integration Code ---
+        });
+        // END OF THE BLOCK TO ADD
         const map = L.map('map', { zoomControl: false }).setView([20, 0], 2.5);
         L.control.zoom({ position: 'topright' }).addTo(map);
         let markers = {}; // Use an object to store markers by name
